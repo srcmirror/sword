@@ -1,9 +1,47 @@
 API ChangeLog	(see the ChangeLog in each 'apps' directory for
 		app specific changes
 
+
+17-Oct-1999
+	Fixed bug in rawstr.cpp that would overwrite buffer size if
+		idxkey info was larger than buffer size
+	Added sparc support
+	Enhanced and debugged build and install system
+	added spec file for building RPMs
+	Added updated GBFHTML and PLAINHTML filters from bibletime team
+	Fixed bug in SWMgr on exit when can't find any config info
+
+15-Oct-1999
+	Changed sig of ProcessText to include SWKey *, and calls approp.
+	Changed SWMgr::optionFilters security to protected
+
+05-Sep-1999
+	Why is it always the 5th?
+	Added RawFilters to facilitate on-the-fly deciphering of entries
+	Added SWCipher which uses Michael Paul Johnson's SapphireII cipher
+	Added CipherFilter which uses SWCipher and .conf CipherKey= entry
+
+05-Jul-1999
+	Added MAXCHAPTER and MAXVERSE as POSITIONs in VerseKey
+	Added Key() method for setting / getting key on SWModule
+	Added kludge to UpperBound for setting verse and chapter to max
+		values if not specified
+	Fixed bugs where error was not being set correctly for some
+		traversals of SWModule
+
+05-Jun-1999
+	Sorry for not keeping the ChangeLog current
+	Lots of other stuff I'm sure I forgot
+	New mods.d configuration
+	Begin phase out of RawGBF.  Move to RawText with SourceType=GBF
+	Added OptionFilters
+	Added scoped searches
+	More bug fixes, as always
+	Profiling to speed up some sections of code
+	
 09-Jan-1999
 	Various API bug fixes.
-	Added naviation support for all module types
+	Added navigation support for all module types
 	Added search support for all module types
 	Added standard mods.conf location lookups to SWMgr
 

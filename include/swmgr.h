@@ -2,7 +2,7 @@
  *  swmgr.h   - definition of class SWMgr used to interact with an install
  *				base of sword modules.
  *
- * $Id: swmgr.h,v 1.1 1999/05/04 22:03:36 scribe Exp $
+ * $Id: swmgr.h,v 1.8 1999/10/17 04:32:01 scribe Exp $
  *
  * Copyright 1998 CrossWire Bible Society (http://www.crosswire.org)
  *	CrossWire Bible Society
@@ -33,7 +33,7 @@
 
 typedef map <string, SWModule *, less<string> > ModMap;
 typedef list<string> OptionsList;
-typedef map<string, SWFilter *> FilterMap;
+typedef map <string, SWFilter *> FilterMap;
 
 class SWMgr {
 private:
@@ -43,14 +43,14 @@ private:
 	void SWMgr::CreateMods();
 	SWModule *SWMgr::CreateMod(string name, string driver, ConfigEntMap &section);
 	void SWMgr::DeleteMods();
-	FilterMap optionFilters;
-	SWFilter *gbfplain;
-	char *prefixPath;
-	char *configPath;
 	char configType;	// 0 = file; 1 = directory
 
 protected:
+	FilterMap optionFilters;
+	SWFilter *gbfplain;
+	FilterList cleanupFilters;
 	OptionsList options;
+	virtual void init();	// use to initialize before loading modules
 	virtual char AddModToConfig(int conffd, const char *fname);
 	virtual void findConfig();
 	virtual void loadConfigDir(const char *ipath);
@@ -58,6 +58,7 @@ protected:
 	virtual void AddLocalOptions(SWModule *module, ConfigEntMap &section, ConfigEntMap::iterator start, ConfigEntMap::iterator end);
 	virtual void AddRenderFilters(SWModule *module, ConfigEntMap &section);
 	virtual void AddStripFilters(SWModule *module, ConfigEntMap &section);
+	virtual void AddRawFilters(SWModule *module, ConfigEntMap &section);
 	virtual char existsFile(const char *ipath, const char *ifileName);
 	virtual char existsDir(const char *ipath, const char *idirName);
 
@@ -66,13 +67,17 @@ public:
 	SWConfig *config;
 	SWConfig *sysconfig;
 	ModMap Modules;
+	char *prefixPath;
+	char *configPath;
 
 	SWMgr(SWConfig *iconfig = 0, SWConfig *isysconfig = 0, bool autoload = true);
+	SWMgr(const char *iConfigPath, bool autoload = true);
 	virtual ~SWMgr();
 	virtual void InstallScan(const char *dir);
 	virtual void Load();
 	virtual void setGlobalOption(const char *option, const char *value);
 	virtual const char *getGlobalOption(const char *option);
+	virtual const char *getGlobalOptionTip(const char *option);
 	virtual OptionsList getGlobalOptions();
 	virtual OptionsList getGlobalOptionValues(const char *option);
 };

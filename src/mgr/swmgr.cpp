@@ -1,3 +1,25 @@
+/******************************************************************************
+ *  swmgr.cpp   - implementaion of class SWMgr used to interact with an install
+ *				base of sword modules.
+ *
+ * $Id: swmgr.cpp,v 1.10 1999/10/17 04:32:01 scribe Exp $
+ *
+ * Copyright 1998 CrossWire Bible Society (http://www.crosswire.org)
+ *	CrossWire Bible Society
+ *	P. O. Box 2528
+ *	Tempe, AZ  85280-2528
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation version 2.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ */
+
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,16 +44,37 @@
 #include <gbfplain.h>
 #include <gbfstrongs.h>
 #include <gbffootnotes.h>
+#include <cipherfil.h>
 #include <rawfiles.h>
 
 
-SWMgr::SWMgr(SWConfig *iconfig, SWConfig *isysconfig, bool autoload) {
-	configPath = 0;
-	prefixPath = 0;
+void SWMgr::init() {
+	SWFilter *tmpFilter = 0;
+	configPath  = 0;
+	prefixPath  = 0;
+	configType  = 0;
+	myconfig    = 0;
+	mysysconfig = 0;
 
-	optionFilters.insert(FilterMap::value_type("GBFStrongs", new GBFStrongs()));
-	optionFilters.insert(FilterMap::value_type("GBFFootnotes", new GBFFootnotes()));
+	optionFilters.clear();
+	cleanupFilters.clear();
+
+	tmpFilter = new GBFStrongs();
+	optionFilters.insert(FilterMap::value_type("GBFStrongs", tmpFilter));
+	cleanupFilters.push_back(tmpFilter);
+
+	tmpFilter = new GBFFootnotes();
+	optionFilters.insert(FilterMap::value_type("GBFFootnotes", tmpFilter));
+	cleanupFilters.push_back(tmpFilter);
+
 	gbfplain = new GBFPlain();
+	cleanupFilters.push_back(gbfplain);
+}
+
+
+SWMgr::SWMgr(SWConfig *iconfig, SWConfig *isysconfig, bool autoload) {
+
+	init();
 	
 	if (iconfig) {
 		config   = iconfig;
@@ -49,15 +92,42 @@ SWMgr::SWMgr(SWConfig *iconfig, SWConfig *isysconfig, bool autoload) {
 }
 
 
+SWMgr::SWMgr(const char *iConfigPath, bool autoload) {
+
+	string path;
+	
+	init();
+	
+	path = iConfigPath;
+	path += "/";
+	if (existsFile(path.c_str(), "mods.conf")) {
+		stdstr(&prefixPath, path.c_str());
+		path += "mods.conf";
+		stdstr(&configPath, path.c_str());
+	}
+	else {
+		if (existsDir(path.c_str(), "mods.d")) {
+			stdstr(&prefixPath, path.c_str());
+			path += "mods.d";
+			stdstr(&configPath, path.c_str());
+			configType = 1;
+		}
+	}
+
+	config = 0;
+	sysconfig = 0;
+
+	if (autoload && configPath)
+		Load();
+}
+
+
 SWMgr::~SWMgr() {
 
 	DeleteMods();
 
-	if (gbfplain)
-		delete gbfplain;
-
-	for (FilterMap::iterator it = optionFilters.begin(); it != optionFilters.end(); it++)
-		delete (*it).second;			
+	for (FilterList::iterator it = cleanupFilters.begin(); it != cleanupFilters.end(); it++)
+		delete (*it);
 			
 	if (myconfig)
 		delete myconfig;
@@ -210,13 +280,19 @@ void SWMgr::loadConfigDir(const char *ipath)
 			}
 		}
 		closedir(dir);
+		if (!config) {	// if no .conf file exist yet, create a default
+			newmodfile = ipath;
+			newmodfile += "/globals.conf";
+			config = myconfig = new SWConfig(newmodfile.c_str());
+		}
 	}
 }
 
 
 void SWMgr::Load() {
-	if (!config) {	// If we weren't passes a config object at construction, find a config file
-		findConfig();
+	if (!config) {	// If we weren't passed a config object at construction, find a config file
+		if (!configPath)	// If we weren't passed a config path at construction...
+			findConfig();
 		if (configPath) {
 			if (configType)
 				loadConfigDir(configPath);
@@ -245,7 +321,7 @@ void SWMgr::Load() {
 		CreateMods();
 	}
 	else {
-		fprintf(stderr, "SWMgr: Can't find 'mods.conf' or 'mods.d'.  Try setting:\n\tSWORD_PATH=<directory containing mods.conf>\n\tOr see the README file for a full description of setup options");
+		SWLog::systemlog->LogError("SWMgr: Can't find 'mods.conf' or 'mods.d'.  Try setting:\n\tSWORD_PATH=<directory containing mods.conf>\n\tOr see the README file for a full description of setup options (%s)", (configPath) ? configPath : "<configPath is null>");
 		exit(-1);
 	}
 }
@@ -266,8 +342,9 @@ SWModule *SWMgr::CreateMod(string name, string driver, ConfigEntMap &section)
 		newmod = new RawText(datapath.c_str(), name.c_str(), description.c_str());
 	}
 	
+	// backward support old drivers
 	if (!stricmp(driver.c_str(), "RawGBF")) {
-		newmod = new RawGBF(datapath.c_str(), name.c_str(), description.c_str());
+		newmod = new RawText(datapath.c_str(), name.c_str(), description.c_str());
 	}
 
 	if (!stricmp(driver.c_str(), "RawCom")) {
@@ -317,19 +394,31 @@ void SWMgr::AddLocalOptions(SWModule *module, ConfigEntMap &section, ConfigEntMa
 }
 
 
-void SWMgr::AddRenderFilters(SWModule *module, ConfigEntMap &section)
-{
+void SWMgr::AddRawFilters(SWModule *module, ConfigEntMap &section) {
+	string sourceformat, cipherKey;
+	ConfigEntMap::iterator entry;
+
+	cipherKey = ((entry = section.find("CipherKey")) != section.end()) ? (*entry).second : (string)"";
+	if (!cipherKey.empty()) {
+		SWFilter *cipherFilter = new CipherFilter(cipherKey.c_str());
+		cleanupFilters.push_back(cipherFilter);
+		module->AddRawFilter(cipherFilter);
+	}
+}
+
+
+void SWMgr::AddRenderFilters(SWModule *module, ConfigEntMap &section) {
 	string sourceformat;
 	ConfigEntMap::iterator entry;
 
 	sourceformat = ((entry = section.find("SourceType")) != section.end()) ? (*entry).second : (string)"";
+
 	// Temporary: To support old module types
 	if (sourceformat.empty()) {
-		try {
-			if (dynamic_cast<RawGBF *>(module))
-				sourceformat = "GBF";
-		}
-		catch ( ... ) {}
+		sourceformat = ((entry = section.find("ModDrv")) != section.end()) ? (*entry).second : (string)"";
+		if (!stricmp(sourceformat.c_str(), "RawGBF"))
+			sourceformat = "GBF";
+		else sourceformat = "";
 	}
 
 // process module	- eg. follows
@@ -348,11 +437,10 @@ void SWMgr::AddStripFilters(SWModule *module, ConfigEntMap &section)
 	sourceformat = ((entry = section.find("SourceType")) != section.end()) ? (*entry).second : (string)"";
 	// Temporary: To support old module types
 	if (sourceformat.empty()) {
-		try {
-			if (dynamic_cast<RawGBF *>(module))
-				sourceformat = "GBF";
-		}
-		catch ( ... ) {}
+		sourceformat = ((entry = section.find("ModDrv")) != section.end()) ? (*entry).second : (string)"";
+		if (!stricmp(sourceformat.c_str(), "RawGBF"))
+			sourceformat = "GBF";
+		else sourceformat = "";
 	}
 	
 	if (!stricmp(sourceformat.c_str(), "GBF")) {
@@ -384,6 +472,7 @@ void SWMgr::CreateMods() {
 				end   = (*it).second.upper_bound("LocalOptionFilter");
 				AddLocalOptions(newmod, section, start, end);
 
+				AddRawFilters(newmod, section);
 				AddStripFilters(newmod, section);
 				AddRenderFilters(newmod, section);
 				
@@ -478,6 +567,16 @@ const char *SWMgr::getGlobalOption(const char *option)
 	for (FilterMap::iterator it = optionFilters.begin(); it != optionFilters.end(); it++) {
 		if (!stricmp(option, (*it).second->getOptionName()))
 			return (*it).second->getOptionValue();
+	}
+	return 0;
+}
+
+
+const char *SWMgr::getGlobalOptionTip(const char *option)
+{
+	for (FilterMap::iterator it = optionFilters.begin(); it != optionFilters.end(); it++) {
+		if (!stricmp(option, (*it).second->getOptionName()))
+			return (*it).second->getOptionTip();
 	}
 	return 0;
 }

@@ -1,8 +1,30 @@
+/******************************************************************************
+ *  swconfig.cpp   - implementation of Class SWConfig used for saving and
+ *			retrieval of configuration information
+ *
+ * $Id: swconfig.cpp,v 1.4 1999/09/06 03:41:45 scribe Exp $
+ *
+ * Copyright 1998 CrossWire Bible Society (http://www.crosswire.org)
+ *	CrossWire Bible Society
+ *	P. O. Box 2528
+ *	Tempe, AZ  85280-2528
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation version 2.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ */
+
 #include <swconfig.h>
 #include <utilfuns.h>
 
 
-SWConfig::SWConfig(string ifilename) {
+SWConfig::SWConfig(const char * ifilename) {
 	filename = ifilename;
 	Load();
 }
@@ -65,8 +87,11 @@ void SWConfig::Load() {
 			}
 			else {
 				strtok(buf, "=");
-				if ((data = strtok(NULL, "")))
-					cursect.insert(ConfigEntMap::value_type(buf, strstrip(data)));
+				if ((*buf) && (*buf != '=')) {
+					if ((data = strtok(NULL, "")))
+						cursect.insert(ConfigEntMap::value_type(buf, strstrip(data)));
+					else cursect.insert(ConfigEntMap::value_type(buf, ""));
+				}
 			}
 			delete [] buf;
 		}
@@ -80,18 +105,24 @@ void SWConfig::Load() {
 
 void SWConfig::Save() {
 	FILE *cfile;
-	char buf[254];
+	string buf;
 	SectionMap::iterator sit;
 	ConfigEntMap::iterator entry;
 	string sectname;
 	
 	if ((cfile = fopen(filename.c_str(), "w"))) {
+		
 		for (sit = Sections.begin(); sit != Sections.end(); sit++) {
-			sprintf(buf, "\n[%s]\n", (*sit).first.c_str());
-			fputs(buf, cfile);
+			buf =  "\n[";
+			buf += (*sit).first.c_str();
+			buf += "]\n";
+			fputs(buf.c_str(), cfile);
 			for (entry = (*sit).second.begin(); entry != (*sit).second.end(); entry++) {
-				sprintf(buf, "%s=%s\n", (*entry).first.c_str(), (*entry).second.c_str());
-				fputs(buf, cfile);
+				buf = (*entry).first.c_str();
+				buf += "=";
+				buf += (*entry).second.c_str();
+				buf += "\n";
+				fputs(buf.c_str(), cfile);
 			}
 		}
 		fputs("\n", cfile);	// so getline will find last line
