@@ -1,8 +1,8 @@
 root := .
 subdir := 
 targets := testlib
-bin := testlib
-subdirs := src obj lib tests 
+#bin := testlib
+subdirs := src obj lib tests utilities include
 other-dist := yes
 other-install := yes
 
@@ -31,7 +31,7 @@ buildso:
 other-install:
 	@echo ""
 	@echo "sword is installed"
-	@echo "Type \"make register\" to help us keep track of how many
+	@echo "Type \"make register\" to help us keep track of how many"
 	@echo "people have seen it."
 	@echo ""
 

@@ -1,6 +1,6 @@
 /*
  *
- * $Id: gbfstrongs.h,v 1.2 1999/05/14 17:21:48 scribe Exp $
+ * $Id: cipherfil.h,v 1.1 1999/09/05 21:47:16 scribe Exp $
  *
  * Copyright 1998 CrossWire Bible Society (http://www.crosswire.org)
  *	CrossWire Bible Society
@@ -18,27 +18,18 @@
  *
  */
 
-#ifndef GBFSTRONGS_H
-#define GBFSTRONGS_H
+#ifndef CIPHERFIL_H
+#define CIPHERFIL_H
 
 #include <swfilter.h>
+#include <swcipher.h>
 
-class GBFStrongs : public SWFilter {
-	bool option;
-	static const char on[];
-	static const char off[];
-	static const char optName[];
-	static const char optTip[];
-	OptionsList options;
+class CipherFilter : public SWFilter {
+	SWCipher *cipher;
 public:
-	GBFStrongs();
-	virtual ~GBFStrongs();
+	CipherFilter(const char *key);
+	virtual ~CipherFilter();
 	virtual char ProcessText(char *text, int maxlen = -1);
-	virtual const char *getOptionName() { return optName; }
-	virtual const char *getOptionTip() { return optTip; }
-	virtual void setOptionValue(const char *ival);
-	virtual const char *getOptionValue();
-	virtual OptionsList getOptionValues() { return options; }
 };
 
 #endif
