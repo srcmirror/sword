@@ -1,3 +1,25 @@
+/******************************************************************************
+ *  swmgr.cpp   - implementaion of class SWMgr used to interact with an install
+ *				base of sword modules.
+ *
+ * $Id: swmgr.cpp,v 1.12 1999/11/23 12:47:23 scribe Exp $
+ *
+ * Copyright 1998 CrossWire Bible Society (http://www.crosswire.org)
+ *	CrossWire Bible Society
+ *	P. O. Box 2528
+ *	Tempe, AZ  85280-2528
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation version 2.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ */
+
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,16 +44,37 @@
 #include <gbfplain.h>
 #include <gbfstrongs.h>
 #include <gbffootnotes.h>
+#include <cipherfil.h>
 #include <rawfiles.h>
 
 
-SWMgr::SWMgr(SWConfig *iconfig, SWConfig *isysconfig, bool autoload) {
-	configPath = 0;
-	prefixPath = 0;
+void SWMgr::init() {
+	SWFilter *tmpFilter = 0;
+	configPath  = 0;
+	prefixPath  = 0;
+	configType  = 0;
+	myconfig    = 0;
+	mysysconfig = 0;
 
-	optionFilters.insert(FilterMap::value_type("GBFStrongs", new GBFStrongs()));
-	optionFilters.insert(FilterMap::value_type("GBFFootnotes", new GBFFootnotes()));
+	optionFilters.clear();
+	cleanupFilters.clear();
+
+	tmpFilter = new GBFStrongs();
+	optionFilters.insert(FilterMap::value_type("GBFStrongs", tmpFilter));
+	cleanupFilters.push_back(tmpFilter);
+
+	tmpFilter = new GBFFootnotes();
+	optionFilters.insert(FilterMap::value_type("GBFFootnotes", tmpFilter));
+	cleanupFilters.push_back(tmpFilter);
+
 	gbfplain = new GBFPlain();
+	cleanupFilters.push_back(gbfplain);
+}
+
+
+SWMgr::SWMgr(SWConfig *iconfig, SWConfig *isysconfig, bool autoload) {
+
+	init();
 	
 	if (iconfig) {
 		config   = iconfig;
@@ -49,15 +92,43 @@ SWMgr::SWMgr(SWConfig *iconfig, SWConfig *isysconfig, bool autoload) {
 }
 
 
+SWMgr::SWMgr(const char *iConfigPath, bool autoload) {
+
+	string path;
+	
+	init();
+	
+	path = iConfigPath;
+	if ((iConfigPath[strlen(iConfigPath)-1] != '\\') && (iConfigPath[strlen(iConfigPath)-1] != '/'))
+		path += "/";
+	if (existsFile(path.c_str(), "mods.conf")) {
+		stdstr(&prefixPath, path.c_str());
+		path += "mods.conf";
+		stdstr(&configPath, path.c_str());
+	}
+	else {
+		if (existsDir(path.c_str(), "mods.d")) {
+			stdstr(&prefixPath, path.c_str());
+			path += "mods.d";
+			stdstr(&configPath, path.c_str());
+			configType = 1;
+		}
+	}
+
+	config = 0;
+	sysconfig = 0;
+
+	if (autoload && configPath)
+		Load();
+}
+
+
 SWMgr::~SWMgr() {
 
 	DeleteMods();
 
-	if (gbfplain)
-		delete gbfplain;
-
-	for (FilterMap::iterator it = optionFilters.begin(); it != optionFilters.end(); it++)
-		delete (*it).second;			
+	for (FilterList::iterator it = cleanupFilters.begin(); it != cleanupFilters.end(); it++)
+		delete (*it);
 			
 	if (myconfig)
 		delete myconfig;
@@ -73,7 +144,8 @@ SWMgr::~SWMgr() {
 char SWMgr::existsFile(const char *ipath, const char *ifileName)
 {
 	string path = ipath;
-	path += "/";
+	if ((ipath[strlen(ipath)-1] != '\\') && (ipath[strlen(ipath)-1] != '/'))
+		path += "/";
 	int fd;
 	string filePath = path + ifileName;
 	if ((fd = ::open(filePath.c_str(), O_RDONLY)) > 0) {
@@ -88,7 +160,8 @@ char SWMgr::existsDir(const char *ipath, const char *idirName)
 {
 	DIR *dir;
 	string path = ipath;
-	path += "/";
+	if ((ipath[strlen(ipath)-1] != '\\') && (ipath[strlen(ipath)-1] != '/'))
+		path += "/";
 	string filePath = path + idirName;
 	if ((dir = opendir(filePath.c_str()))) {
 		closedir(dir);
@@ -127,7 +200,8 @@ void SWMgr::findConfig() {
 
 	if (envsworddir != NULL) {
 		path = envsworddir;
-		path += "/";
+		if ((envsworddir[strlen(envsworddir)-1] != '\\') && (envsworddir[strlen(envsworddir)-1] != '/'))
+			path += "/";
 		if (existsFile(path.c_str(), "mods.conf")) {
 			stdstr(&prefixPath, path.c_str());
 			path += "mods.conf";
@@ -148,7 +222,9 @@ void SWMgr::findConfig() {
 
 	if (envhomedir != NULL) {
 		path = envhomedir;
-		path += "/.sword/";
+		if ((envhomedir[strlen(envhomedir)-1] != '\\') && (envhomedir[strlen(envhomedir)-1] != '/'))
+			path += "/";
+		path += ".sword/";
 		if (existsFile(path.c_str(), "mods.conf")) {
 			stdstr(&prefixPath, "");
 			path += "mods.conf";
@@ -169,7 +245,9 @@ void SWMgr::findConfig() {
 		::close(fd);
 		SWConfig etcconf("/etc/sword.conf");
 		if ((entry = etcconf.Sections["Install"].find("DataPath")) != etcconf.Sections["Install"].end()) {
-			path = (*entry).second + "/";
+			path = (*entry).second;
+			if (((*entry).second.c_str()[strlen((*entry).second.c_str())-1] != '\\') && ((*entry).second.c_str()[strlen((*entry).second.c_str())-1] != '/'))
+				path += "/";
 
 			if (existsFile(path.c_str(), "mods.conf")) {
 				stdstr(&prefixPath, path.c_str());
@@ -200,7 +278,8 @@ void SWMgr::loadConfigDir(const char *ipath)
 		while ((ent = readdir(dir))) {
 			if ((strcmp(ent->d_name, ".")) && (strcmp(ent->d_name, ".."))) {
 				newmodfile = ipath;
-				newmodfile += "/";
+				if ((ipath[strlen(ipath)-1] != '\\') && (ipath[strlen(ipath)-1] != '/'))
+					newmodfile += "/";
 				newmodfile += ent->d_name;
 				if (config) {
 					SWConfig tmpConfig(newmodfile.c_str());
@@ -210,13 +289,21 @@ void SWMgr::loadConfigDir(const char *ipath)
 			}
 		}
 		closedir(dir);
+		if (!config) {	// if no .conf file exist yet, create a default
+			newmodfile = ipath;
+			if ((ipath[strlen(ipath)-1] != '\\') && (ipath[strlen(ipath)-1] != '/'))
+				newmodfile += "/";
+			newmodfile += "globals.conf";
+			config = myconfig = new SWConfig(newmodfile.c_str());
+		}
 	}
 }
 
 
 void SWMgr::Load() {
-	if (!config) {	// If we weren't passes a config object at construction, find a config file
-		findConfig();
+	if (!config) {	// If we weren't passed a config object at construction, find a config file
+		if (!configPath)	// If we weren't passed a config path at construction...
+			findConfig();
 		if (configPath) {
 			if (configType)
 				loadConfigDir(configPath);
@@ -245,7 +332,7 @@ void SWMgr::Load() {
 		CreateMods();
 	}
 	else {
-		fprintf(stderr, "SWMgr: Can't find 'mods.conf' or 'mods.d'.  Try setting:\n\tSWORD_PATH=<directory containing mods.conf>\n\tOr see the README file for a full description of setup options");
+		SWLog::systemlog->LogError("SWMgr: Can't find 'mods.conf' or 'mods.d'.  Try setting:\n\tSWORD_PATH=<directory containing mods.conf>\n\tOr see the README file for a full description of setup options (%s)", (configPath) ? configPath : "<configPath is null>");
 		exit(-1);
 	}
 }
@@ -259,15 +346,24 @@ SWModule *SWMgr::CreateMod(string name, string driver, ConfigEntMap &section)
 
 	description = ((entry = section.find("Description")) != section.end()) ? (*entry).second : (string)"";
 	datapath = prefixPath;
-	datapath += "/";
-	datapath += ((entry = section.find("DataPath")) != section.end()) ? (*entry).second : (string)"";
+	if ((prefixPath[strlen(prefixPath)-1] != '\\') && (prefixPath[strlen(prefixPath)-1] != '/'))
+		datapath += "/";
+	misc1 += ((entry = section.find("DataPath")) != section.end()) ? (*entry).second : (string)"";
+	char *buf = new char [ strlen(misc1.c_str()) + 1 ];
+	char *buf2 = buf;
+	strcpy(buf, misc1.c_str());
+	for (; ((*buf2) && ((*buf2 == '.') || (*buf2 == '/') || (*buf2 == '\\'))); buf2++);
+	if (*buf2)
+		datapath += buf2;
+	delete [] buf;
 	
 	if (!stricmp(driver.c_str(), "RawText")) {
 		newmod = new RawText(datapath.c_str(), name.c_str(), description.c_str());
 	}
 	
+	// backward support old drivers
 	if (!stricmp(driver.c_str(), "RawGBF")) {
-		newmod = new RawGBF(datapath.c_str(), name.c_str(), description.c_str());
+		newmod = new RawText(datapath.c_str(), name.c_str(), description.c_str());
 	}
 
 	if (!stricmp(driver.c_str(), "RawCom")) {
@@ -317,19 +413,31 @@ void SWMgr::AddLocalOptions(SWModule *module, ConfigEntMap &section, ConfigEntMa
 }
 
 
-void SWMgr::AddRenderFilters(SWModule *module, ConfigEntMap &section)
-{
+void SWMgr::AddRawFilters(SWModule *module, ConfigEntMap &section) {
+	string sourceformat, cipherKey;
+	ConfigEntMap::iterator entry;
+
+	cipherKey = ((entry = section.find("CipherKey")) != section.end()) ? (*entry).second : (string)"";
+	if (!cipherKey.empty()) {
+		SWFilter *cipherFilter = new CipherFilter(cipherKey.c_str());
+		cleanupFilters.push_back(cipherFilter);
+		module->AddRawFilter(cipherFilter);
+	}
+}
+
+
+void SWMgr::AddRenderFilters(SWModule *module, ConfigEntMap &section) {
 	string sourceformat;
 	ConfigEntMap::iterator entry;
 
 	sourceformat = ((entry = section.find("SourceType")) != section.end()) ? (*entry).second : (string)"";
+
 	// Temporary: To support old module types
 	if (sourceformat.empty()) {
-		try {
-			if (dynamic_cast<RawGBF *>(module))
-				sourceformat = "GBF";
-		}
-		catch ( ... ) {}
+		sourceformat = ((entry = section.find("ModDrv")) != section.end()) ? (*entry).second : (string)"";
+		if (!stricmp(sourceformat.c_str(), "RawGBF"))
+			sourceformat = "GBF";
+		else sourceformat = "";
 	}
 
 // process module	- eg. follows
@@ -348,11 +456,10 @@ void SWMgr::AddStripFilters(SWModule *module, ConfigEntMap &section)
 	sourceformat = ((entry = section.find("SourceType")) != section.end()) ? (*entry).second : (string)"";
 	// Temporary: To support old module types
 	if (sourceformat.empty()) {
-		try {
-			if (dynamic_cast<RawGBF *>(module))
-				sourceformat = "GBF";
-		}
-		catch ( ... ) {}
+		sourceformat = ((entry = section.find("ModDrv")) != section.end()) ? (*entry).second : (string)"";
+		if (!stricmp(sourceformat.c_str(), "RawGBF"))
+			sourceformat = "GBF";
+		else sourceformat = "";
 	}
 	
 	if (!stricmp(sourceformat.c_str(), "GBF")) {
@@ -384,6 +491,7 @@ void SWMgr::CreateMods() {
 				end   = (*it).second.upper_bound("LocalOptionFilter");
 				AddLocalOptions(newmod, section, start, end);
 
+				AddRawFilters(newmod, section);
 				AddStripFilters(newmod, section);
 				AddRenderFilters(newmod, section);
 				
@@ -418,13 +526,15 @@ void SWMgr::InstallScan(const char *dirname)
 		while ((ent = readdir(dir))) {
 			if ((strcmp(ent->d_name, ".")) && (strcmp(ent->d_name, ".."))) {
 				newmodfile = dirname;
-				newmodfile += "/";
+				if ((dirname[strlen(dirname)-1] != '\\') && (dirname[strlen(dirname)-1] != '/'))
+					newmodfile += "/";
 				newmodfile += ent->d_name;
 				if (configType) {
 					if (config > 0)
 						close(conffd);
 					targetName = configPath;
-					targetName += "/";
+					if ((configPath[strlen(configPath)-1] != '\\') && (configPath[strlen(configPath)-1] != '/'))
+						targetName += "/";
 					targetName += ent->d_name;
 					conffd = open(targetName.c_str(), O_WRONLY|O_CREAT, S_IREAD|S_IWRITE);
 				}
@@ -478,6 +588,16 @@ const char *SWMgr::getGlobalOption(const char *option)
 	for (FilterMap::iterator it = optionFilters.begin(); it != optionFilters.end(); it++) {
 		if (!stricmp(option, (*it).second->getOptionName()))
 			return (*it).second->getOptionValue();
+	}
+	return 0;
+}
+
+
+const char *SWMgr::getGlobalOptionTip(const char *option)
+{
+	for (FilterMap::iterator it = optionFilters.begin(); it != optionFilters.end(); it++) {
+		if (!stricmp(option, (*it).second->getOptionName()))
+			return (*it).second->getOptionTip();
 	}
 	return 0;
 }

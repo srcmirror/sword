@@ -1,10 +1,23 @@
 root := .
 subdir := 
 targets := testlib
-bin := testlib
-subdirs := src obj lib tests 
+#bin := testlib
+subdirs := src obj lib tests utilities include
 other-dist := yes
 other-install := yes
+
+docs += README
+docs += INSTALL
+docs += LICENSE
+docssamples += samples/mods.conf.large
+docssamples += samples/mods.conf.small
+docssmodsd += samples/mods.d/globals.conf
+docssmodsd += samples/mods.d/rwp.conf
+docssmodsd += samples/mods.d/strongsnt.conf
+docssmodsd += samples/mods.d/strongsot.conf
+docssmodsd += samples/mods.d/vines.conf
+docssmodsd += samples/mods.d/web.conf
+docssmodsd += samples/mods.d/websters.conf
 
 include ${root}/Makefile.cfg
 
@@ -31,7 +44,7 @@ buildso:
 other-install:
 	@echo ""
 	@echo "sword is installed"
-	@echo "Type \"make register\" to help us keep track of how many
+	@echo "Type \"make register\" to help us keep track of how many"
 	@echo "people have seen it."
 	@echo ""
 

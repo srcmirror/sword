@@ -1,7 +1,8 @@
 #include <swmgr.h>
 #include <iostream.h>
+#include <versekey.h>
 
-main() {
+int main(int argc, char **argv) {
 	SWMgr mymgr;
 	ModMap::iterator it;
 
@@ -12,4 +13,10 @@ main() {
 			cout << (char *) *(*it).second << "\n\n";
 		}
 	}
+	SWModule *mhc = mymgr.Modules["MHC"];
+	if (mhc) {
+		for (mhc->Key("Gen 1:1"); mhc->Key() < (VerseKey) "Gen 1:10"; (*mhc)++)
+			cout << (const char *) *mhc << "\n";
+	}
+	return 0;
 }
