@@ -1,8 +1,7 @@
 root := ..
 subdirs := 
 pre-targets := 
-targets := keytest mgrtest parsekey listtest casttest
-bin := keytest mgrtest parsekey listtest
+targets := keytest mgrtest parsekey listtest casttest modtest 
 include ${root}/Makefile.cfg
 
 cpp += keytest.cpp
@@ -10,6 +9,7 @@ cpp += mgrtest.cpp
 cpp += parsekey.cpp
 cpp += listtest.cpp
 cpp += casttest.cpp
+cpp += modtest.cpp
 
 s = $(c) $(cpp)
 d = $(c:%.c=%.d) $(cpp:%.cpp=%.d)
@@ -31,6 +31,9 @@ listtest: listtest.o
 
 casttest: casttest.o
 	$(CC) $(LFLAGS) -o $@ casttest.o $(l) $(l) -O0
+
+modtest: modtest.o
+	$(CC) $(LFLAGS) -o $@ modtest.o $(l) $(l) -O0
 
 
 ifneq ($(nodeps),yes)

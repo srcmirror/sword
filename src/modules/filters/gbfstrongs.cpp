@@ -17,6 +17,7 @@
 const char GBFStrongs::on[] = "On";
 const char GBFStrongs::off[] = "Off";
 const char GBFStrongs::optName[] = "Strong's Numbers";
+const char GBFStrongs::optTip[] = "Toggles Strong's Numbers On and Off In Bible Texts If They Exist";
 
 
 GBFStrongs::GBFStrongs() {
@@ -39,11 +40,11 @@ const char *GBFStrongs::getOptionValue()
 	return (option) ? on:off;
 }
 
-char GBFStrongs::ProcessText(char *text, int maxlen)
+char GBFStrongs::ProcessText(char *text, int maxlen, const SWKey *key)
 {
 	if (!option) {	// if we don't want strongs
 		char *to, *from, token[2048]; // cheese.  Fix.
-		char tokpos = 0;
+		int tokpos = 0;
 		bool intoken = false;
 		int len;
 		bool lastspace = false;
@@ -59,7 +60,7 @@ char GBFStrongs::ProcessText(char *text, int maxlen)
 			if (*from == '<') {
 				intoken = true;
 				tokpos = 0;
-				memset(token, 0, 20);
+				memset(token, 0, 2048);
 				continue;
 			}
 			if (*from == '>') {	// process tokens
@@ -83,8 +84,10 @@ char GBFStrongs::ProcessText(char *text, int maxlen)
 				*to++ = '>';
 				continue;
 			}
-			if (intoken)
-				token[tokpos++] = *from;
+			if (intoken) {
+				if (tokpos < 2047)
+					token[tokpos++] = *from;
+			}
 			else	{
 				*to++ = *from;
 				lastspace = (*from == ' ');

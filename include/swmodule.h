@@ -3,7 +3,7 @@
  *		  types of modules (e.g. texts, commentaries, maps, lexicons,
  *		  etc.)
  *
- * $Id: swmodule.h,v 1.1 1999/05/04 22:03:36 scribe Exp $
+ * $Id: swmodule.h,v 1.3 1999/09/05 07:32:36 scribe Exp $
  *
  * Copyright 1998 CrossWire Bible Society (http://www.crosswire.org)
  *	CrossWire Bible Society
@@ -45,9 +45,10 @@ protected:
 	SWDisplay *disp;
 	static SWDisplay rawdisp;
 	char *entrybuf;
-	FilterList stripfilters;
-	FilterList renderfilters;
-	FilterList optionfilters;
+	FilterList stripfilters;	// executed to remove all markup (for searches)
+	FilterList rawfilters;	// executed immediately upon fileread
+	FilterList renderfilters;// executed to format for display
+	FilterList optionfilters;// executed to change markup to user prefs
 
 public:
 	bool terminateSearch;
@@ -55,6 +56,8 @@ public:
 	virtual ~SWModule();
 	virtual char Error();
 	virtual char SetKey(const SWKey &ikey);
+	virtual SWKey &Key() const { return *key; }
+	virtual char Key(const SWKey &ikey) { return SetKey(ikey); }
 	virtual const char *KeyText(char *imodtype = 0);
 	virtual char Display();
 	virtual SWDisplay *Disp(SWDisplay *idisp = 0);
@@ -80,6 +83,7 @@ public:
 	virtual SWModule &operator =(POSITION);
 	virtual SWModule &AddRenderFilter(SWFilter *newfilter) { renderfilters.push_back(newfilter); return *this;}
 	virtual SWModule &AddStripFilter(SWFilter *newfilter) { stripfilters.push_back(newfilter); return *this;}
+	virtual SWModule &AddRawFilter(SWFilter *newfilter) { rawfilters.push_back(newfilter); return *this;}
 	virtual SWModule &AddOptionFilter(SWFilter *newfilter) { optionfilters.push_back(newfilter); return *this;}
 	virtual const char *StripText(char *text = 0, int len = -1);
 	virtual const char *RenderText(char *text = 0, int len = -1);

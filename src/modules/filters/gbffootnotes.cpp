@@ -17,6 +17,7 @@
 const char GBFFootnotes::on[] = "On";
 const char GBFFootnotes::off[] = "Off";
 const char GBFFootnotes::optName[] = "Footnotes";
+const char GBFFootnotes::optTip[] = "Toggles Footnotes On and Off In Bible Texts If They Exist";
 
 
 GBFFootnotes::GBFFootnotes() {
@@ -39,11 +40,11 @@ const char *GBFFootnotes::getOptionValue()
 	return (option) ? on:off;
 }
 
-char GBFFootnotes::ProcessText(char *text, int maxlen)
+char GBFFootnotes::ProcessText(char *text, int maxlen, const SWKey *key)
 {
 	if (!option) {	// if we don't want footnotes
 		char *to, *from, token[2048]; // cheese.  Fix.
-		char tokpos = 0;
+		int tokpos = 0;
 		bool intoken = false;
 		int len;
 		bool lastspace = false;
@@ -60,7 +61,7 @@ char GBFFootnotes::ProcessText(char *text, int maxlen)
 			if (*from == '<') {
 				intoken = true;
 				tokpos = 0;
-				memset(token, 0, 20);
+				memset(token, 0, 2048);
 				continue;
 			}
 			if (*from == '>') {	// process tokens
@@ -85,8 +86,10 @@ char GBFFootnotes::ProcessText(char *text, int maxlen)
 				}
 				continue;
 			}
-			if (intoken)
-				token[tokpos++] = *from;
+			if (intoken) {
+				if (tokpos < 2047)
+					token[tokpos++] = *from;
+			}
 			else	{
 				if (!hide) {
 					*to++ = *from;
