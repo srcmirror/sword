@@ -18,6 +18,7 @@
 
 #include <swkey.h>
 #include <versekey.h>
+#include <localemgr.h>
 
 /******************************************************************************
  *  Initialize static members of VerseKey
@@ -25,8 +26,8 @@
 
 #include <canon.h>	// Initialize static members of canonical books structure
 
-struct sbook *VerseKey::books[2]       = {0,0};
-const char    VerseKey::BMAX[2]        = {39, 27};
+struct sbook *VerseKey::builtin_books[2]       = {0,0};
+const char    VerseKey::builtin_BMAX[2]        = {39, 27};
 long         *VerseKey::offsets[2][2]  = {{VerseKey::otbks, VerseKey::otcps}, {VerseKey::ntbks, VerseKey::ntcps}};
 int           VerseKey::instance       = 0;
 ListKey     VerseKey::internalListKey;
@@ -36,8 +37,7 @@ ListKey     VerseKey::internalListKey;
  * VerseKey::init - initializes instance of VerseKey
  */
 
-void VerseKey::init()
-{
+void VerseKey::init() {
 	if (!instance)
 		initstatics();
 
@@ -51,6 +51,7 @@ void VerseKey::init()
 	chapter = 0;
 	verse = 0;
 
+	setLocale(LocaleMgr::systemLocaleMgr.getDefaultLocaleName());
 }
 
 /******************************************************************************
@@ -128,25 +129,56 @@ VerseKey::~VerseKey()
 }
 
 
+void VerseKey::setLocale(const char *name) {
+	char *BMAX;
+	struct sbook **books;
+	SWLocale *locale = LocaleMgr::systemLocaleMgr.getLocale(name);
+	if (locale) {
+		locale->getBooks(&BMAX, &books);
+		setBooks(BMAX, books);
+		setBookAbbrevs(locale->getBookAbbrevs());
+	}
+	else {
+		setBooks(builtin_BMAX, builtin_books);
+		setBookAbbrevs(builtin_abbrevs);
+	}
+}
+
+
+void VerseKey::setBooks(const char *iBMAX, struct sbook **ibooks) {
+	BMAX = iBMAX;
+	books = ibooks;
+}
+
+
+void VerseKey::setBookAbbrevs(const struct abbrev *bookAbbrevs) {
+	abbrevs = bookAbbrevs;
+	for (abbrevsCnt = 1; *abbrevs[abbrevsCnt].ab; abbrevsCnt++) {
+		if (strcmp(abbrevs[abbrevsCnt-1].ab, abbrevs[abbrevsCnt].ab) > 0) {
+			fprintf(stderr, "ERROR: book abbreviation (canon.h or locale) misordered at entry: %s\n", abbrevs[abbrevsCnt].ab);
+			exit(-1);
+		}
+	}
+}
+
+
 /******************************************************************************
  * VerseKey::initstatics - initializes statics.  Performed only when first
  *						instance on VerseKey (or descendent) is created.
  */
 
-void VerseKey::initstatics()
-{
+void VerseKey::initstatics() {
 	int l1, l2, chaptmp = 0;
 
-	books[0] = otbooks;
-	books[1] = ntbooks;
+	builtin_books[0] = otbooks;
+	builtin_books[1] = ntbooks;
 
 	for (l1 = 0; l1 < 2; l1++) {
-		for (l2 = 0; l2 < BMAX[l1]; l2++) {
-			books[l1][l2].versemax = &vm[chaptmp];
-			chaptmp += books[l1][l2].chapmax;
+		for (l2 = 0; l2 < builtin_BMAX[l1]; l2++) {
+			builtin_books[l1][l2].versemax = &vm[chaptmp];
+			chaptmp += builtin_books[l1][l2].chapmax;
 		}
 	}
-	for (abbrevsCnt = 0; *abbrevs[abbrevsCnt].ab; abbrevsCnt++);
 }
 
 
@@ -240,7 +272,8 @@ int VerseKey::getBookAbbrev(char *abbr)
 
 	if (abLen) {
 		min = 0;
-		max = abbrevsCnt - 1;
+//		max = abbrevsCnt - 1;
+		max = abbrevsCnt;
 		while(1) {
 			target = min + ((max - min) / 2);
 			diff = strncmp(abbr, abbrevs[target].ab, abLen);
@@ -257,7 +290,7 @@ int VerseKey::getBookAbbrev(char *abbr)
 
 /******************************************************************************
  * VerseKey::ParseVerseList - Attempts to parse a buffer into separate
- *				verse entries returned in an ListKey
+ *				verse entries returned in a ListKey
  *
  * ENT:	buf		- buffer to parse;
  *	defaultKey	- if verse, chap, book, or testament is left off,
@@ -265,9 +298,11 @@ int VerseKey::getBookAbbrev(char *abbr)
  *				Gen would be used when parsing the 4:5 section)
  *
  * RET:	ListKey reference filled with verse entries contained in buf
+ *
+ * COMMENT: This code works but wreaks.  Rewrite to make more maintainable.
  */
 
-ListKey &VerseKey::ParseVerseList(char *buf, const char *defaultKey)
+ListKey &VerseKey::ParseVerseList(char *buf, const char *defaultKey, char max)
 {
 	SWKey textkey;
 
@@ -282,6 +317,7 @@ ListKey &VerseKey::ParseVerseList(char *buf, const char *defaultKey)
 	int loop;
 	char comma = 0;
 	char dash = 0;
+	char *orig = buf;
 	ListKey tmpListKey;
 	SWKey tmpDefaultKey = defaultKey;
 
@@ -368,8 +404,12 @@ ListKey &VerseKey::ParseVerseList(char *buf, const char *defaultKey)
 			break;
 		case 10:	// ignore these
 		case 13: 
-		case '.':
 			break;
+		case '.':
+			if (buf > orig)			// ignore (break) if preceeding char is not a digit
+				if (!isdigit(*(buf-1)))
+					break;
+			
 		default:
 			if (isdigit(*buf)) {
 				number[tonumber++] = *buf;
@@ -466,6 +506,7 @@ VerseKey &VerseKey::LowerBound(const char *lb)
 		initBounds();
 
 	(*lowerBound) = lb;
+	lowerBound->Normalize();
 
 	return (*lowerBound);
 }
@@ -480,7 +521,32 @@ VerseKey &VerseKey::UpperBound(const char *ub)
 	if (!upperBound) 
 		initBounds();
 
-	(*upperBound) = ub;
+// need to set upperbound parsing to resolve to max verse/chap if not specified
+        (*upperBound) = ub;
+	if (*upperBound < *lowerBound)
+		*upperBound = *lowerBound;
+	upperBound->Normalize();
+
+// until we have a proper method to resolve max verse/chap use this kludge
+	int len = strlen(ub);
+	bool alpha = false;
+	bool versespec = false;
+	bool chapspec = false;
+	for (int i = 0; i < len; i++) {
+		if (isalpha(ub[i]))
+			alpha = true;
+		if (ub[i] == ':')	// if we have a : we assume verse spec
+			versespec = true;
+		if ((isdigit(ub[i])) && (alpha))	// if digit after alpha assume chap spec
+			chapspec = true;
+	}
+	if (!chapspec)
+		*upperBound = MAXCHAPTER;
+	if (!versespec)
+		*upperBound = MAXVERSE;
+	
+
+// -- end kludge
 
 	return (*upperBound);
 }
@@ -610,6 +676,13 @@ SWKey &VerseKey::operator =(POSITION p)
 		chapter   = UpperBound().Chapter();
 		verse     = UpperBound().Verse();
 		break;
+	case POS_MAXVERSE:
+		verse     = books[testament-1][book-1].versemax[chapter-1];
+		break;
+	case POS_MAXCHAPTER:
+		verse     = 1;
+		chapter   = books[testament-1][book-1].chapmax;
+		break;
 	} 
 	Normalize(1);
 	Error();	// clear error from normalize
@@ -627,10 +700,14 @@ SWKey &VerseKey::operator =(POSITION p)
 
 SWKey &VerseKey::operator += (int increment)
 {
+	char ierror = 0;
 	Index(Index() + increment);
-	while ((!verse) && (!headings) && (!Error())) 
+	while ((!verse) && (!headings) && (!ierror)) {
 		Index(Index() + 1);
+		ierror = Error();
+	}
 
+	error = (ierror) ? ierror : error;
 	return *this;
 }
 
@@ -648,11 +725,14 @@ SWKey &VerseKey::operator -= (int decrement)
 	char ierror = 0;
 
 	Index(Index() - decrement);
-	while ((!verse) && (!headings) && (!(ierror = Error()))) 
+	while ((!verse) && (!headings) && (!ierror)) {
 		Index(Index() - 1);
+		ierror = Error();
+	}
 	if ((ierror) && (!headings))
 		(*this)++;
 
+	error = (ierror) ? ierror : error;
 	return *this;
 }
 
@@ -842,10 +922,10 @@ char VerseKey::Book(char ibook)
 {
 	char retval = book;
 
-	if (ibook != MAXPOS(char)) {
-		book = ibook;
-		Normalize(1);
-	}
+	Chapter(1);
+	book = ibook;
+	Normalize(1);
+
 	return retval;
 }
 
@@ -864,10 +944,10 @@ int VerseKey::Chapter(int ichapter)
 {
 	int retval = chapter;
 
-	if (ichapter != MAXPOS(int)) {
-		chapter = ichapter;
-		Normalize(1);
-	}
+	Verse(1);
+	chapter = ichapter;
+	Normalize(1);
+
 	return retval;
 }
 
@@ -886,10 +966,9 @@ int VerseKey::Verse(int iverse)
 {
 	int retval = verse;
 
-	if (iverse != MAXPOS(int)) {
-		verse = iverse;
-		Normalize(1);
-	}
+	verse = iverse;
+	Normalize(1);
+
 	return retval;
 }
 

@@ -22,6 +22,9 @@
 #include <utilfuns.h>
 #include <rawstr.h>
 
+#ifdef BIGENDIAN
+#include <sys/pctypes.h>
+#endif
 
 /******************************************************************************
  * RawStr Statics
@@ -122,11 +125,27 @@ void RawStr::getidxbufdat(long ioffset, char **buf)
 
 void RawStr::getidxbuf(long ioffset, char **buf)
 {
+	char *trybuf, *targetbuf;
 	long offset;
+	
 	if (idxfd > 0) {
 		lseek(idxfd->getFd(), ioffset, SEEK_SET);
 		read(idxfd->getFd(), &offset, 4);
+#ifdef BIGENDIAN
+		offset = lelong(offset);
+#endif
 		getidxbufdat(offset, buf);
+		for (trybuf = targetbuf = *buf; *trybuf; trybuf++, targetbuf++) {
+/*
+			if (*trybuf == '-') {		// ignore '-' because alphabetized silly in file
+				targetbuf--;
+				continue;
+			}
+*/
+			*targetbuf = toupper(*trybuf);
+		}
+		*targetbuf = 0;
+		trybuf = 0;
 	}
 }
 
@@ -145,8 +164,8 @@ void RawStr::getidxbuf(long ioffset, char **buf)
 
 char RawStr::findoffset(const char *ikey, long *start, unsigned short *size, long away)
 {
-	char *trybuf, *key, quitflag = 0, retval = 0;
-	long headoff, tailoff, tryoff, maxoff = 0;
+	char *trybuf, *targetbuf, *key, quitflag = 0, retval = 0;
+	long headoff, tailoff, tryoff = 0, maxoff = 0;
 
 	if (*ikey) {
 		headoff = 0;
@@ -155,9 +174,16 @@ char RawStr::findoffset(const char *ikey, long *start, unsigned short *size, lon
 		key = new char [ strlen(ikey) + 1 ];
 		strcpy(key, ikey);
 
-		for (trybuf = key; *trybuf; trybuf++)
-			*trybuf = toupper(*trybuf);
-
+		for (trybuf = targetbuf = key; *trybuf; trybuf++, targetbuf++) {
+/*
+			if (*trybuf == '-') {		// ignore '-' because alphabetized silly in file
+				targetbuf--;
+				continue;
+			}
+*/
+			*targetbuf = toupper(*trybuf);
+		}
+		*targetbuf = 0;
 		trybuf = 0;
 
 		while (headoff < tailoff) {
@@ -165,11 +191,17 @@ char RawStr::findoffset(const char *ikey, long *start, unsigned short *size, lon
 			lastoff = -1;
 			getidxbuf(tryoff, &trybuf);
 
-			if (!strcmp(key, trybuf) || (!*trybuf)) {
+			if (!*trybuf) {		// In case of extra entry at end of idx
+				tryoff += (tryoff > (maxoff / 2))?-6:6;
+				retval = -1;
 				break;
 			}
+					
+			if (!strcmp(key, trybuf))
+				break;
 
-			if (strcmp(key, trybuf) < 0)
+			int diff = strcmp(key, trybuf);
+			if (diff < 0)
 				tailoff = (tryoff == headoff) ? headoff : tryoff;
 			else headoff = tryoff;
 			if (tailoff == headoff + 6) {
@@ -188,11 +220,18 @@ char RawStr::findoffset(const char *ikey, long *start, unsigned short *size, lon
 	lseek(idxfd->getFd(), tryoff, SEEK_SET);
 	read(idxfd->getFd(), start, 4);
 	read(idxfd->getFd(), size, 2);
+
+#ifdef BIGENDIAN
+		*start = lelong(*start);
+		*size  = leshort(*size);
+#endif
+
 	while (away) {
 		long laststart = *start;
 		unsigned short lastsize = *size;
 		long lasttry = tryoff;
 		tryoff += (away > 0) ? 6 : -6;
+		
 		if ((lseek(idxfd->getFd(), tryoff, SEEK_SET) < 0) || ((tryoff + (away*6)) < -6) || (tryoff + (away*6) > (maxoff+6))) {
 			retval = -1;
 			*start = laststart;
@@ -202,6 +241,12 @@ char RawStr::findoffset(const char *ikey, long *start, unsigned short *size, lon
 		}
 		read(idxfd->getFd(), start, 4);
 		read(idxfd->getFd(), size, 2);
+
+#ifdef BIGENDIAN
+		*start = lelong(*start);
+		*size  = leshort(*size);
+#endif
+
 		if (((laststart != *start) || (lastsize != *size)) && (*start >= 0) && (*size)) 
 			away += (away < 0) ? 1 : -1;
 	}
@@ -295,7 +340,10 @@ void RawStr::gettext(long start, unsigned short size, char *idxbuf, char *buf)
 	}
 	memmove(buf, ch, strlen(ch) + 1);
 	if (idxbuflocal) {
-		strcpy(idxbuf, idxbuflocal);
+		int localsize = strlen(idxbuflocal);
+		localsize = (localsize < (size - 1)) ? localsize : (size - 1);
+		strncpy(idxbuf, idxbuflocal, localsize);
+		idxbuf[localsize] = 0;
 		free(idxbuflocal);
 	}
 }

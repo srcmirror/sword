@@ -14,9 +14,10 @@ GBFPlain::GBFPlain() {
 }
 
 
-char GBFPlain::ProcessText(char *text, int maxlen)
+char GBFPlain::ProcessText(char *text, int maxlen, const SWKey *key)
 {
-	char *to, *from, token[20], tokpos = 0;
+	char *to, *from, token[2048];
+	int tokpos = 0;
 	bool intoken = false;
 	int len;
 
@@ -31,21 +32,43 @@ char GBFPlain::ProcessText(char *text, int maxlen)
 		if (*from == '<') {
 			intoken = true;
 			tokpos = 0;
-			memset(token, 0, 20);
+			memset(token, 0, 2048);
 			continue;
 		}
 		if (*from == '>') {
 			intoken = false;
 						// process desired tokens
 			switch (*token) {
+			case 'W':	// Strongs
+				switch(token[1]) {
+					case 'G':               // Greek
+					case 'H':               // Hebrew
+						*to++ = ' ';
+						*to++ = '<';
+						for (unsigned int i = 2; i < strlen(token); i++)
+							*to++ = token[i];
+						*to++ = '>';
+						*to++ = ' ';
+						continue;
+
+					case 'T':               // Tense
+						*to++ = ' ';
+						*to++ = '(';
+						for (unsigned int i = 3; i < strlen(token); i++)
+							*to++ = token[i];
+						*to++ = ')';
+						*to++ = ' ';
+						continue;
+				}
+				break;
 			case 'R':
 				switch(token[1]) {
 				case 'F':               // footnote begin
 					*to++ = ' ';
-					*to++ = '(';
+					*to++ = '[';
 					continue;
 				case 'f':               // footnote end
-					*to++ = ')';
+					*to++ = ']';
 					*to++ = ' ';
 					continue;
 				}
@@ -76,8 +99,10 @@ char GBFPlain::ProcessText(char *text, int maxlen)
 			}
 			continue;
 		}
-		if (intoken)
-			token[tokpos++] = *from;
+		if (intoken) {
+			if (tokpos < 2047)
+				token[tokpos++] = *from;
+		}
 		else	*to++ = *from;
 	}
 	*to = 0;

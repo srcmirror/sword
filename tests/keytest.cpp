@@ -6,12 +6,19 @@
 #include <echomod.h>
 #include <stdlib.h>
 
+#include <localemgr.h>
+
 int main(int argc, char **argv)
 {
 	int loop;
 	int max;
+
+	if (argc > 1)
+		LocaleMgr::systemLocaleMgr.setDefaultLocaleName(argv[1]);
+
 	VerseKey	bla;
 	long index;
+
 
 	if (argc < 2) 
 		bla = "James    1:19";
@@ -145,5 +152,8 @@ int main(int argc, char **argv)
 	bla++;
 	cout << "bla.Error() = " << (int)bla.Error() << " \n";
 
+	bla.Headings(0);
+	for (bla = BOTTOM; !bla.Error(); bla.Book(bla.Book()-1))
+		cout << (const char *)bla << "\n";
 	return 0;
 }

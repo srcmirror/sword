@@ -2,7 +2,7 @@
  *  swfilter.h	- definition of class SWFilter used to filter text between
  *				different formats
  *
- * $Id: swfilter.h,v 1.1 1999/05/04 22:03:36 scribe Exp $
+ * $Id: swfilter.h,v 1.4 1999/10/25 04:31:24 scribe Exp $
  *
  * Copyright 1998 CrossWire Bible Society (http://www.crosswire.org)
  *	CrossWire Bible Society
@@ -24,16 +24,19 @@
 #define SWFILTER_H
 #include <string>
 #include <list>
+#include <swkey.h>
 
 typedef std::list<std::string> OptionsList;
 
 class SWFilter {
 public:
 	virtual const char *getOptionName() { return 0; }
+	virtual const char *getOptionTip() { return 0; }
 	virtual OptionsList getOptionValues() { OptionsList options; return options; }
 	virtual void setOptionValue(const char *ival) {}
 	virtual const char *getOptionValue() { return 0; }
-	virtual char ProcessText(char *text, int maxlen = -1) = 0;
+	virtual char ProcessText(char *text, int maxlen, const SWKey *key) { return ProcessText(text, maxlen); }
+	virtual char ProcessText(char *text, int maxlen = -1) { return ProcessText(text, maxlen, 0); }
 };
 
 #endif

@@ -1,5 +1,3 @@
-
-
 #include <ctype.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -11,9 +9,9 @@
 #include <unistd.h>
 #endif
 
-#include <swcomprs.h>
+#include <zipcomprs.h>
 
-class FileCompress: public SWCompress {
+class FileCompress: public ZipCompress {
 	int ifd;
 	int ofd;
 	int ufd;
@@ -36,14 +34,14 @@ FileCompress::FileCompress(char *fname)
 #define O_BINARY 0
 #endif
 
-	ufd  = open(fname, O_RDWR|O_CREAT|O_BINARY);
+	ufd  = open(fname, O_RDWR|O_CREAT|O_BINARY, 00644);
 
-	sprintf(buf, "%s.zzz", fname);
-	zfd = open(buf, O_RDWR|O_CREAT|O_BINARY);
+	sprintf(buf, "%s.zip", fname);
+	zfd = open(buf, O_RDWR|O_CREAT|O_BINARY, 00644);
 }
 
 	
-FileCompress::~FileCompress(char *fname) 
+FileCompress::~FileCompress() 
 {
 	close(ufd);
 	close(zfd);
@@ -67,7 +65,7 @@ void FileCompress::Encode()
 	ifd = ufd;
 	ofd = zfd;
 
-	SWCompress::Encode();
+	ZipCompress::Encode();
 }
 
 
@@ -76,7 +74,7 @@ void FileCompress::Decode()
 	ifd = zfd;
 	ofd = ufd;
 
-	SWCompress::Decode();
+	ZipCompress::Decode();
 }
 
 
@@ -86,12 +84,12 @@ main(int argc, char **argv)
 	SWCompress *fobj;
 	
 	if (argc != 2) {
-		fprintf(stderr, "usage: %s <filename|filename.zzz>\n", argv[0]);
+		fprintf(stderr, "usage: %s <filename|filename.zip>\n", argv[0]);
 		exit(1);
 	}
 
 	if (strlen(argv[1]) > 4) {
-		if (!strcmp(&argv[1][strlen(argv[1])-4], ".zzz")) {
+		if (!strcmp(&argv[1][strlen(argv[1])-4], ".zip")) {
 			argv[1][strlen(argv[1])-4] = 0;
 			decomp = 1;
 		}
