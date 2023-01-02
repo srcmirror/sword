@@ -233,7 +233,7 @@ void SWKey::setPosition(SW_POSITION p) {
 	case POS_BOTTOM:
 //		*this = "zzzzzzzzz";
 		break;
-	} 
+	}
 }
 
 

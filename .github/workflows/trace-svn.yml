@@ -1,0 +1,50 @@
+name: Trace SVN
+on:
+  push:
+
+env:
+  URL: https://crosswire.org/svn/sword
+
+jobs:
+  mirror:
+    name: Convert SVN Repos
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    steps:
+      - name: Install commands
+        shell: bash
+        run: |
+          echo "::group::Install git ..."
+          apt-get update -qq
+          apt-get install --assume-yes git git-svn python3 tree
+          echo "::endgroup::"
+      - name: Checkout repository source
+        uses: actions/checkout@v4
+      - name: Show info
+        shell: bash
+        run: |
+          env | sort
+      - name: Checkout svn2git repository
+        uses: actions/checkout@v4
+        with:
+          repository: blackstream-x/python-svn2git
+          path: python-svn2git
+      - name: Running svn2git
+        shell: bash
+        run: |
+          mkdir ${{ env.HOME }}/sword
+          cd ${{ env.HOME }}/sword
+          ${GITHUB_WORKSPACE}/python-svn2git/svn2git.py --authors ${GITHUB_WORKSPACE}/.github/workflows/users.txt ${{ env.URL }}
+      - name: Show info
+        shell: bash
+        run: |
+          cd ${{ env.HOME }}/sword
+          git status
+          git log -n 5
+          git tags -l
+          git branch -a
+
+#      - name: Install GH CLI
+#        uses: dev-hanz-ops/install-gh-cli-action@v0.1.0
+#        with:
+#          gh-cli-version: 2.39.1

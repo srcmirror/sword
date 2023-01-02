@@ -81,9 +81,9 @@ SWBuf &zText4::getRawEntryBuf() const {
 
 	findOffset(key.getTestament(), key.getTestamentIndex(), &start, &size, &buffnum);
 	entrySize = (int)size;        // support getEntrySize call
-			  
+
 	entryBuf = "";
-	
+
 	zReadText(key.getTestament(), start, size, buffnum, entryBuf);
 	rawFilter(entryBuf, &key);
 

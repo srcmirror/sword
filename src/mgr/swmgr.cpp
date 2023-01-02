@@ -323,7 +323,7 @@ void SWMgr::init() {
 	SWFilter *f = new RTFHTML();
 	extraFilters.insert(FilterMap::value_type("RTFHTML", f));
 	cleanupFilters.push_back(f);
-	
+
 }
 
 
@@ -340,7 +340,7 @@ void SWMgr::commonInit(SWConfig *iconfig, SWConfig *isysconfig, bool autoload, S
 	this->filterMgr = filterMgr;
 	if (filterMgr)
 		filterMgr->setParentMgr(this);
-	
+
 	if (iconfig) {
 		config   = iconfig;
 		myconfig = 0;
@@ -380,11 +380,11 @@ SWMgr::SWMgr(const char *iConfigPath, bool autoload, SWFilterMgr *filterMgr, boo
 
 	mgrModeMultiMod = multiMod;
 	SWBuf path;
-	
+
 	this->filterMgr = filterMgr;
 	if (filterMgr)
 		filterMgr->setParentMgr(this);
-	
+
 	this->augmentHome = augmentHome;
 
 	path = iConfigPath;
