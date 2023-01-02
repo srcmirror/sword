@@ -70,7 +70,7 @@ zStr::zStr(const char *ipath, int fileMode, long blockCount, SWCompress *icomp, 
 	if (fileMode == -1) { // try read/write if possible
 		fileMode = FileMgr::RDWR;
 	}
-		
+
 	buf.setFormatted("%s.idx", path);
 	idxfd = FileMgr::getSystemFileMgr()->open(buf, fileMode, true);
 
@@ -693,7 +693,7 @@ signed char zStr::createModule(const char *ipath) {
 	FileMgr::getSystemFileMgr()->close(fd2);
 
 	delete [] path;
-	
+
 	return 0;
 }
 
