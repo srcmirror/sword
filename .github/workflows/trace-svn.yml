@@ -41,8 +41,13 @@ jobs:
           cd ${{ env.HOME }}/sword
           git status
           git log -n 5
-          git tags -l
+          git tag -l
           git branch -a
+          cd  ${GITHUB_WORKSPACE}
+          git remote set upstream ${HOME}/sword
+          git fetch upstream
+          git rebase upstream/main
+          git push origin main
 
 #      - name: Install GH CLI
 #        uses: dev-hanz-ops/install-gh-cli-action@v0.1.0
