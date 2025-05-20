@@ -27,6 +27,7 @@ jobs:
         shell: bash
         run: |
           env | sort
+          git config --global --add safe.directory '*'
       - name: Checkout svn2git repository
         uses: actions/checkout@v4
         with:
@@ -52,11 +53,12 @@ jobs:
           git log -n 5
           git tag -l
           git branch -a
-          cd  ${GITHUB_WORKSPACE}
-          git remote set upstream ${HOME}/sword
-          git fetch upstream
-          git rebase upstream/main
-          git push origin main
+
+#          cd  ${GITHUB_WORKSPACE}
+#          git remote set upstream ${HOME}/sword
+#          git fetch upstream
+#          git rebase upstream/main
+#          git push origin main
 
 #      - name: Install GH CLI
 #        uses: dev-hanz-ops/install-gh-cli-action@v0.1.0
