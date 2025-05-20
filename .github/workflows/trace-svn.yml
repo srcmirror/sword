@@ -9,7 +9,10 @@ jobs:
   mirror:
     name: Convert SVN Repos
     runs-on: ubuntu-latest
-    container: ubuntu:22.04
+    container:
+      image: ubuntu:22.04
+      volumes:
+        - /tmp/.cache
     steps:
       - name: Install commands
         shell: bash
@@ -35,6 +38,12 @@ jobs:
           mkdir ${{ env.HOME }}/sword
           cd ${{ env.HOME }}/sword
           ${GITHUB_WORKSPACE}/python-svn2git/svn2git.py --authors ${GITHUB_WORKSPACE}/.github/workflows/users.txt ${{ env.URL }}
+          cp -r ${{ env.HOME }}/sword /tmp/.cache
+      - name: Cache mate-desktop binary packages
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.cache
+          key: sword-git-svn-cache
       - name: Show info
         shell: bash
         run: |
